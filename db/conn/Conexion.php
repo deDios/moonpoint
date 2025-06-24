@@ -9,7 +9,7 @@ function conectar() {
         "mobilitysolutions-server.mysql.database.azure.com",
         "btdonyajwn",
         "Llaverito_4855797'?",
-        "god_code",
+        "moon_point",
         3306,
         NULL,
         MYSQLI_CLIENT_SSL
