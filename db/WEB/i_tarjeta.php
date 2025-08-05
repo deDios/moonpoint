@@ -47,7 +47,7 @@ $numero_tarjeta = mysqli_real_escape_string($con, $numero_tarjeta);
 $secret_key = "MiClaveUltraSecreta2025";
 
 // --- 6. Insertar registro
-$sql = "INSERT INTO cliente_tarjeta (nombre_persona, tarjeta_encriptada)
+$sql = "INSERT INTO moon_point.cliente_tarjeta (nombre_persona, tarjeta_encriptada)
         VALUES ('$nombre_persona', AES_ENCRYPT('$numero_tarjeta', '$secret_key'))";
 
 if (mysqli_query($con, $sql)) {
