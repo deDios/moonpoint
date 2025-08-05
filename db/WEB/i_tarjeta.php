@@ -1,7 +1,6 @@
 <?php
 header('Content-Type: application/json');
 
-// --- Incluir la conexión
 $path = realpath("/home/site/wwwroot/db/conn/Conexion.php");
 if ($path && file_exists($path)) {
     include $path;
@@ -9,11 +8,22 @@ if ($path && file_exists($path)) {
     die(json_encode(["error" => "No se encontró Conexion.php en la ruta $path"]));
 }
 
-// --- Leer datos de entrada (JSON)
-$input = json_decode(file_get_contents("php://input"), true);
+// --- Capturar JSON crudo o POST tradicional
+$rawInput = file_get_contents("php://input");
+$input = json_decode($rawInput, true);
 
-if (!isset($input['nombre_persona']) || !isset($input['numero_tarjeta'])) {
-    die(json_encode(["error" => "Faltan parámetros obligatorios: 'nombre_persona' y 'numero_tarjeta'"]));
+if (!is_array($input)) {
+    // Si no viene JSON, intentar leer como form-data o x-www-form-urlencoded
+    $input = $_POST;
+}
+
+// --- Validar parámetros
+if (empty($input['nombre_persona']) || empty($input['numero_tarjeta'])) {
+    echo json_encode([
+        "error" => "Faltan parámetros obligatorios: 'nombre_persona' y 'numero_tarjeta'",
+        "rawInput" => $rawInput // Para depuración
+    ]);
+    exit;
 }
 
 $nombre_persona = trim($input['nombre_persona']);
