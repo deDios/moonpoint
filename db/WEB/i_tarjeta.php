@@ -1,6 +1,9 @@
 <?php
-header('Content-Type: application/json');
+header('Content-Type: application/json; charset=UTF-8');
+header("Access-Control-Allow-Origin: *");
+header("Access-Control-Allow-Methods: POST");
 
+// --- Incluir conexión a la BD
 $path = realpath("/home/site/wwwroot/db/conn/Conexion.php");
 if ($path && file_exists($path)) {
     include $path;
@@ -8,20 +11,21 @@ if ($path && file_exists($path)) {
     die(json_encode(["error" => "No se encontró Conexion.php en la ruta $path"]));
 }
 
-// --- Capturar JSON crudo o POST tradicional
+// --- 1. Capturar datos de JSON o POST tradicional
 $rawInput = file_get_contents("php://input");
 $input = json_decode($rawInput, true);
 
-if (!is_array($input)) {
-    // Si no viene JSON, intentar leer como form-data o x-www-form-urlencoded
+// Si no llegó JSON válido, intentar leer como $_POST
+if (!is_array($input) || empty($input)) {
     $input = $_POST;
 }
 
-// --- Validar parámetros
+// --- 2. Validar parámetros obligatorios
 if (empty($input['nombre_persona']) || empty($input['numero_tarjeta'])) {
     echo json_encode([
         "error" => "Faltan parámetros obligatorios: 'nombre_persona' y 'numero_tarjeta'",
-        "rawInput" => $rawInput // Para depuración
+        "rawInput" => $rawInput,
+        "postData" => $_POST
     ]);
     exit;
 }
@@ -29,20 +33,20 @@ if (empty($input['nombre_persona']) || empty($input['numero_tarjeta'])) {
 $nombre_persona = trim($input['nombre_persona']);
 $numero_tarjeta = trim($input['numero_tarjeta']);
 
-// --- Conexión
+// --- 3. Conexión a la BD
 $con = conectar();
 if (!$con) {
     die(json_encode(["error" => "No se pudo conectar a la base de datos"]));
 }
 
-// --- Escapar datos
+// --- 4. Escapar datos
 $nombre_persona = mysqli_real_escape_string($con, $nombre_persona);
 $numero_tarjeta = mysqli_real_escape_string($con, $numero_tarjeta);
 
-// --- Llave secreta para AES
+// --- 5. Llave secreta AES
 $secret_key = "MiClaveUltraSecreta2025";
 
-// --- Insertar registro con AES_ENCRYPT
+// --- 6. Insertar registro
 $sql = "INSERT INTO cliente_tarjeta (nombre_persona, tarjeta_encriptada)
         VALUES ('$nombre_persona', AES_ENCRYPT('$numero_tarjeta', '$secret_key'))";
 
