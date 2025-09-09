@@ -1,58 +1,121 @@
 <?php
 header('Content-Type: application/json; charset=utf-8');
+header('Access-Control-Allow-Origin: *');
 
-try {
-  // TODO: ajusta esta conexión a tu entorno
-  $pdo = new PDO("mysql:host=localhost;dbname=tu_db;charset=utf8mb4", "tu_usuario", "tu_password", [
-    PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION,
-    PDO::ATTR_DEFAULT_FETCH_MODE => PDO::FETCH_ASSOC
-  ]);
-
-  $input = json_decode(file_get_contents('php://input'), true) ?: [];
-
-  $product_id = isset($input['product_id']) ? intval($input['product_id']) : null;
-  if (!$product_id) {
-    http_response_code(400);
-    echo json_encode(["ok" => false, "error" => "product_id es requerido"]);
+// === Cargar conexión estilo ejemplo ===
+$path = realpath("/home/site/wwwroot/db/conn/Conn_android.php");
+if ($path && file_exists($path)) {
+    include $path;
+} else {
+    http_response_code(500);
+    echo json_encode(["ok"=>false,"error"=>"CONN_FILE_NOT_FOUND","path"=>$path]);
     exit;
-  }
-
-  // Campos opcionales
-  $fields = [];
-  $params = [":id" => $product_id];
-
-  if (isset($input['name']))        { $fields[] = "name = :name";               $params[":name"] = trim($input['name']); }
-  if (isset($input['price']))       { $fields[] = "price = :price";             $params[":price"] = floatval($input['price']); }
-  if (isset($input['category_id'])) { $fields[] = "category_id = :category_id"; $params[":category_id"] = intval($input['category_id']); }
-  if (isset($input['stock']))       { $fields[] = "stock = :stock";             $params[":stock"] = intval($input['stock']); }
-  if (array_key_exists('image_url', $input)) { // permite forzar null
-    $fields[] = "image_url = :image_url";
-    $params[":image_url"] = $input['image_url']; // puede ser string o null
-  }
-  if (isset($input['active']))      { $fields[] = "active = :active";           $params[":active"] = intval($input['active']); }
-
-  if (empty($fields)) {
-    http_response_code(400);
-    echo json_encode(["ok" => false, "error" => "No hay campos para actualizar"]);
-    exit;
-  }
-
-  $sql = "UPDATE products SET ".implode(", ", $fields).", updated_at = NOW() WHERE id = :id";
-  $stmt = $pdo->prepare($sql);
-  $stmt->execute($params);
-
-  // Devuelve el registro actualizado
-  $q = $pdo->prepare("SELECT id, name, price, category_id, stock, image_url FROM products WHERE id = :id");
-  $q->execute([":id" => $product_id]);
-  $item = $q->fetch();
-
-  echo json_encode([
-    "ok" => true,
-    "product_id" => $product_id,
-    "item" => $item
-  ]);
-
-} catch (Exception $e) {
-  http_response_code(500);
-  echo json_encode(["ok" => false, "error" => $e->getMessage()]);
 }
+
+$con = function_exists('conectar_android') ? conectar_android()
+     : (function_exists('conectar') ? conectar() : null);
+
+if (!$con) {
+    http_response_code(500);
+    echo json_encode(["ok"=>false,"error"=>"DB_CONNECT_FAILED"]);
+    exit;
+}
+mysqli_set_charset($con, "utf8mb4");
+
+// === Util: leer JSON y GET de forma homogénea ===
+$input = json_decode(file_get_contents("php://input"), true) ?: [];
+function param($key, $default = null) {
+    global $input;
+    return isset($_GET[$key]) ? $_GET[$key]
+         : (array_key_exists($key, $input) ? $input[$key] : $default);
+}
+
+// === Params ===
+// Acepta 'id' (Android) o 'product_id' (compat)
+$id = intval(param('id', param('product_id', 0)));
+if ($id <= 0) {
+    http_response_code(400);
+    echo json_encode(["ok"=>false, "error"=>"id (o product_id) es requerido"]);
+    exit;
+}
+
+// Campos opcionales
+$sets = [];
+// name
+if (array_key_exists('name', $input) || isset($_GET['name'])) {
+    $name = trim((string)param('name', ''));
+    $nameEsc = mysqli_real_escape_string($con, $name);
+    $sets[] = "name = '$nameEsc'";
+}
+// price
+if (array_key_exists('price', $input) || isset($_GET['price'])) {
+    $price = (float) param('price', 0);
+    $sets[] = "price = ".($price+0);
+}
+// category_id
+if (array_key_exists('category_id', $input) || isset($_GET['category_id'])) {
+    $categoryId = intval(param('category_id', 0));
+    $sets[] = "category_id = $categoryId";
+}
+// stock
+if (array_key_exists('stock', $input) || isset($_GET['stock'])) {
+    $stock = intval(param('stock', 0));
+    $sets[] = "stock = $stock";
+}
+// image_url (permitir forzar NULL)
+if (array_key_exists('image_url', $input) || isset($_GET['image_url'])) {
+    $img = param('image_url', null);
+    if ($img === null || $img === '') {
+        $sets[] = "image_url = NULL";
+    } else {
+        $imgEsc = mysqli_real_escape_string($con, (string)$img);
+        $sets[] = "image_url = '$imgEsc'";
+    }
+}
+// status/active -> is_active
+if (array_key_exists('status', $input) || isset($_GET['status']) ||
+    array_key_exists('active', $input) || isset($_GET['active'])) {
+    $active = intval(param('status', param('active', 1)));
+    $active = ($active ? 1 : 0);
+    $sets[] = "is_active = $active";
+}
+
+if (empty($sets)) {
+    http_response_code(400);
+    echo json_encode(["ok"=>false, "error"=>"No hay campos para actualizar"]);
+    mysqli_close($con);
+    exit;
+}
+
+$sets[] = "updated_at = NOW()";
+$sql = "UPDATE products SET ".implode(", ", $sets)." WHERE id = $id";
+
+if (!mysqli_query($con, $sql)) {
+    http_response_code(500);
+    echo json_encode(["ok"=>false, "error"=>"UPDATE_FAILED", "message"=>mysqli_error($con)]);
+    mysqli_close($con);
+    exit;
+}
+
+// Devuelve el registro actualizado (opcional)
+$q = "SELECT
+        p.id, p.sku, p.barcode, p.name, p.description,
+        p.category_id, p.price, p.cost, p.stock, p.image_url,
+        p.is_active, p.created_at, p.updated_at
+      FROM products p
+      WHERE p.id = $id
+      LIMIT 1";
+$res = mysqli_query($con, $q);
+$item = null;
+if ($res && ($row = mysqli_fetch_assoc($res))) {
+    $row['id'] = (int)$row['id'];
+    $row['category_id'] = (int)$row['category_id'];
+    $row['is_active'] = (int)$row['is_active'];
+    $row['stock'] = (int)$row['stock'];
+    $row['price'] = (float)$row['price'];
+    $row['cost'] = (float)$row['cost'];
+    $item = $row;
+}
+
+echo json_encode(["ok"=>true, "id"=>$id, "item"=>$item], JSON_UNESCAPED_UNICODE);
+mysqli_close($con);

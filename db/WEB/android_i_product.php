@@ -1,56 +1,58 @@
 <?php
 header('Content-Type: application/json; charset=utf-8');
+header('Access-Control-Allow-Origin: *');
 
-try {
-  // TODO: ajusta esta conexión a tu entorno
-  $pdo = new PDO("mysql:host=localhost;dbname=tu_db;charset=utf8mb4", "tu_usuario", "tu_password", [
-    PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION,
-    PDO::ATTR_DEFAULT_FETCH_MODE => PDO::FETCH_ASSOC
-  ]);
+$path = realpath("/home/site/wwwroot/db/conn/Conn_android.php");
+if ($path && file_exists($path)) { include $path; }
+else { http_response_code(500); echo json_encode(["ok"=>false,"error"=>"CONN_FILE_NOT_FOUND","path"=>$path]); exit; }
 
-  $input = json_decode(file_get_contents('php://input'), true) ?: [];
+$con = function_exists('conectar_android') ? conectar_android()
+     : (function_exists('conectar') ? conectar() : null);
+if (!$con) { http_response_code(500); echo json_encode(["ok"=>false,"error"=>"DB_CONNECT_FAILED"]); exit; }
+mysqli_set_charset($con,"utf8mb4");
 
-  $name        = isset($input['name']) ? trim($input['name']) : null;
-  $price       = isset($input['price']) ? floatval($input['price']) : null;
-  $category_id = isset($input['category_id']) ? intval($input['category_id']) : null;
+$input = json_decode(file_get_contents("php://input"), true) ?: [];
+function param($k,$d=null){ global $input; return isset($_GET[$k])?$_GET[$k]:(array_key_exists($k,$input)?$input[$k]:$d); }
 
-  $stock       = isset($input['stock']) ? intval($input['stock']) : 0;
-  $image_url   = array_key_exists('image_url', $input) ? $input['image_url'] : null; // permite null
-  $active      = isset($input['active']) ? intval($input['active']) : 1;
+// Requeridos
+$name = trim((string) param('name',''));
+$price = param('price', null);
+$categoryId = param('category_id', null);
+$stock = param('stock', null);
 
-  if (!$name || $price === null || $category_id === null) {
+if ($name === '' || $price === null || $categoryId === null || $stock === null) {
     http_response_code(400);
-    echo json_encode(["ok" => false, "error" => "name, price y category_id son requeridos"]);
+    echo json_encode(["ok"=>false,"error"=>"Faltan campos requeridos: name, price, category_id, stock"]);
+    mysqli_close($con);
     exit;
-  }
-
-  $stmt = $pdo->prepare("
-    INSERT INTO products (name, price, category_id, stock, image_url, active, created_at, updated_at)
-    VALUES (:name, :price, :category_id, :stock, :image_url, :active, NOW(), NOW())
-  ");
-  $stmt->execute([
-    ":name" => $name,
-    ":price" => $price,
-    ":category_id" => $category_id,
-    ":stock" => $stock,
-    ":image_url" => $image_url,
-    ":active" => $active
-  ]);
-
-  $id = intval($pdo->lastInsertId());
-
-  // Devuelve el registro creado
-  $q = $pdo->prepare("SELECT id, name, price, category_id, stock, image_url FROM products WHERE id = :id");
-  $q->execute([":id" => $id]);
-  $item = $q->fetch();
-
-  echo json_encode([
-    "ok" => true,
-    "product_id" => $id,
-    "item" => $item
-  ]);
-
-} catch (Exception $e) {
-  http_response_code(500);
-  echo json_encode(["ok" => false, "error" => $e->getMessage()]);
 }
+
+// Opcionales
+$image = param('image_url', null);
+$status = intval(param('status', param('active', 1))) ? 1 : 0;
+
+$nameEsc = mysqli_real_escape_string($con, $name);
+$price = (float)$price;
+$categoryId = (int)$categoryId;
+$stock = (int)$stock;
+
+$cols = "name, price, category_id, stock, is_active, created_at, updated_at";
+$vals = "'$nameEsc', $price, $categoryId, $stock, $status, NOW(), NOW()";
+if ($image !== null && $image !== '') {
+    $imgEsc = mysqli_real_escape_string($con, (string)$image);
+    $cols .= ", image_url";
+    $vals .= ", '$imgEsc'";
+}
+
+$sql = "INSERT INTO products ($cols) VALUES ($vals)";
+
+if (!mysqli_query($con, $sql)) {
+    http_response_code(500);
+    echo json_encode(["ok"=>false,"error"=>"INSERT_FAILED","message"=>mysqli_error($con)]);
+    mysqli_close($con);
+    exit;
+}
+
+$id = (int) mysqli_insert_id($con);
+echo json_encode(["ok"=>true, "id"=>$id], JSON_UNESCAPED_UNICODE);
+mysqli_close($con);
