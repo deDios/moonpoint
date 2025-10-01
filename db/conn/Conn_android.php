@@ -15,6 +15,7 @@ function conectar() {
         MYSQLI_CLIENT_SSL
     )) {
         return null; // Retorna null si falla
+        
     }
     return $con;
 }
