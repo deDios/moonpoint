@@ -27,9 +27,13 @@ foreach ($required as $k) {
 }
 
 $organization_id = (int)$input["organization_id"];
-$name       = trim($input["name"]);
-$is_active  = isset($input["is_active"]) ? (int)$input["is_active"] : 1;
-$sort_order = isset($input["sort_order"]) ? (int)$input["sort_order"] : 0;
+$name            = trim((string)$input["name"]);
+$is_active       = isset($input["is_active"]) ? (int)$input["is_active"] : 1;
+$sort_order      = isset($input["sort_order"]) ? (int)$input["sort_order"] : 0;
+/**
+ * image_name es opcional: si NO viene, dejamos que MySQL use el DEFAULT 'cat_default'.
+ */
+$image_name      = array_key_exists("image_name", $input) ? trim((string)$input["image_name"]) : null;
 
 $con = conectar();
 if (!$con) {
@@ -37,17 +41,26 @@ if (!$con) {
   exit;
 }
 
-$sql = "INSERT INTO moon_categories (organization_id, name, is_active, sort_order)
-        VALUES (?, ?, ?, ?)";
-$stmt = $con->prepare($sql);
-if (!$stmt) {
-  echo json_encode(["success" => false, "error" => "Error al preparar consulta"]);
-  $con->close(); exit;
+if ($image_name !== null && $image_name !== "") {
+  $sql = "INSERT INTO moon_categories (organization_id, name, image_name, is_active, sort_order)
+          VALUES (?, ?, ?, ?, ?)";
+  $stmt = $con->prepare($sql);
+  if (!$stmt) { echo json_encode(["success" => false, "error" => "Error al preparar consulta"]); $con->close(); exit; }
+  $stmt->bind_param("issii", $organization_id, $name, $image_name, $is_active, $sort_order);
+} else {
+  $sql = "INSERT INTO moon_categories (organization_id, name, is_active, sort_order)
+          VALUES (?, ?, ?, ?)";
+  $stmt = $con->prepare($sql);
+  if (!$stmt) { echo json_encode(["success" => false, "error" => "Error al preparar consulta"]); $con->close(); exit; }
+  $stmt->bind_param("isii", $organization_id, $name, $is_active, $sort_order);
 }
-$stmt->bind_param("isii", $organization_id, $name, $is_active, $sort_order);
 
 if ($stmt->execute()) {
-  echo json_encode(["success" => true, "message" => "Categoría creada", "id" => (int)$stmt->insert_id]);
+  echo json_encode([
+    "success" => true,
+    "message" => "Categoría creada",
+    "id"      => (int)$stmt->insert_id
+  ]);
 } else {
   if ($con->errno == 1062) {
     echo json_encode(["success" => false, "error" => "Ya existe una categoría con ese nombre en la organización"]);

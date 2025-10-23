@@ -26,17 +26,26 @@ foreach ($required as $k) {
   }
 }
 
-$id = (int)$input["id"];
+$id              = (int)$input["id"];
 $organization_id = (int)$input["organization_id"];
 
 $fields = [];
 $params = [];
 $types  = "";
 
-// Campos opcionales
+/**
+ * Campos opcionales (si vienen, se actualizan)
+ * name, image_name, is_active, sort_order
+ */
 if (array_key_exists("name", $input)) {
   $fields[] = "name = ?";
-  $params[] = trim($input["name"]);
+  $params[] = trim((string)$input["name"]);
+  $types   .= "s";
+}
+if (array_key_exists("image_name", $input)) {
+  // puede ser cadena vacía o null si quieres "limpiar", pero aquí lo dejamos literal
+  $fields[] = "image_name = ?";
+  $params[] = ($input["image_name"] === null) ? null : trim((string)$input["image_name"]);
   $types   .= "s";
 }
 if (array_key_exists("is_active", $input)) {
@@ -67,10 +76,7 @@ $params[] = $organization_id;
 $types   .= "ii";
 
 $stmt = $con->prepare($sql);
-if (!$stmt) {
-  echo json_encode(["success" => false, "error" => "Error al preparar consulta"]);
-  $con->close(); exit;
-}
+if (!$stmt) { echo json_encode(["success" => false, "error" => "Error al preparar consulta"]); $con->close(); exit; }
 
 $stmt->bind_param($types, ...$params);
 
