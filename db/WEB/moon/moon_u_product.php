@@ -29,22 +29,60 @@ $fields = [];
 $params = [];
 $types  = "";
 
-// Campos opcionales
-if (array_key_exists("category_id", $input)) { $fields[] = "category_id = ?"; $params[] = (int)$input["category_id"]; $types .= "i"; }
-if (array_key_exists("sku", $input))         { $fields[] = "sku = ?";         $params[] = trim((string)$input["sku"]); $types .= "s"; }
-if (array_key_exists("name", $input))        { $fields[] = "name = ?";        $params[] = trim((string)$input["name"]); $types .= "s"; }
-if (array_key_exists("description", $input)) { $fields[] = "description = ?"; $params[] = trim((string)$input["description"]); $types .= "s"; }
-if (array_key_exists("price", $input))       { $fields[] = "price = ?";       $params[] = (float)$input["price"]; $types .= "d"; }
-if (array_key_exists("cost", $input))        { $fields[] = "cost = ?";        $params[] = isset($input["cost"]) ? (float)$input["cost"] : null; $types .= "d"; }
-if (array_key_exists("image_name", $input))  { $fields[] = "image_name = ?";  $params[] = ($input["image_name"] === null) ? null : trim((string)$input["image_name"]); $types .= "s"; }
-if (array_key_exists("is_active", $input))   { $fields[] = "is_active = ?";   $params[] = (int)$input["is_active"]; $types .= "i"; }
-if (array_key_exists("sort_order", $input))  { $fields[] = "sort_order = ?";  $params[] = (int)$input["sort_order"]; $types .= "i"; }
-if (array_keyExists = array_key_exists("attributes", $input)) {
+// ---- Campos opcionales (usar variables, no literales) ----
+if (array_key_exists("category_id", $input)) {
+  $p_category_id = (int)$input["category_id"];
+  $fields[] = "category_id = ?";
+  $params[] = $p_category_id; $types .= "i";
+}
+if (array_key_exists("sku", $input)) {
+  $p_sku = trim((string)$input["sku"]);
+  $fields[] = "sku = ?";
+  $params[] = $p_sku; $types .= "s";
+}
+if (array_key_exists("name", $input)) {
+  $p_name = trim((string)$input["name"]);
+  $fields[] = "name = ?";
+  $params[] = $p_name; $types .= "s";
+}
+if (array_key_exists("description", $input)) {
+  $p_description = trim((string)$input["description"]);
+  $fields[] = "description = ?";
+  $params[] = $p_description; $types .= "s";
+}
+if (array_key_exists("price", $input)) {
+  $p_price = (float)$input["price"];
+  $fields[] = "price = ?";
+  $params[] = $p_price; $types .= "d";
+}
+if (array_key_exists("cost", $input)) {
+  // puede venir null para limpiar
+  $p_cost = isset($input["cost"]) ? (float)$input["cost"] : null;
+  $fields[] = "cost = ?";
+  $params[] = $p_cost; $types .= "d";
+}
+if (array_key_exists("image_name", $input)) {
+  // puede venir null para limpiar
+  $p_image_name = ($input["image_name"] === null) ? null : trim((string)$input["image_name"]);
+  $fields[] = "image_name = ?";
+  $params[] = $p_image_name; $types .= "s";
+}
+if (array_key_exists("is_active", $input)) {
+  $p_is_active = (int)$input["is_active"];
+  $fields[] = "is_active = ?";
+  $params[] = $p_is_active; $types .= "i";
+}
+if (array_key_exists("sort_order", $input)) {
+  $p_sort_order = (int)$input["sort_order"];
+  $fields[] = "sort_order = ?";
+  $params[] = $p_sort_order; $types .= "i";
+}
+if (array_key_exists("attributes", $input)) {
+  // acepta objeto/array/string/null; guardamos como JSON (o NULL)
   $attr = $input["attributes"];
-  $attrJson = ($attr === null) ? null : (is_string($attr) ? $attr : json_encode($attr, JSON_UNESCAPED_UNICODE));
+  $p_attr_json = ($attr === null) ? null : (is_string($attr) ? $attr : json_encode($attr, JSON_UNESCAPED_UNICODE));
   $fields[] = "attributes = CAST(? AS JSON)";
-  $params[] = $attrJson;
-  $types .= "s";
+  $params[] = $p_attr_json; $types .= "s";
 }
 
 if (empty($fields)) {
@@ -53,17 +91,37 @@ if (empty($fields)) {
 }
 
 $con = conectar();
-if (!$con) { echo json_encode(["success" => false, "error" => "No se pudo conectar a la base de datos"]); exit; }
+if (!$con) {
+  echo json_encode(["success" => false, "error" => "No se pudo conectar a la base de datos"]);
+  exit;
+}
 
 $sql = "UPDATE moon_product SET " . implode(", ", $fields) . " WHERE id = ? AND organization_id = ?";
-$params[] = $id;
-$params[] = $organization_id;
+
+// IDs al final
+$p_id = $id;
+$p_org = $organization_id;
+$params[] = $p_id;
+$params[] = $p_org;
 $types   .= "ii";
 
+// IMPORTANTE: bind_param requiere referencias
 $stmt = $con->prepare($sql);
-if (!$stmt) { echo json_encode(["success" => false, "error" => "Error al preparar consulta"]); $con->close(); exit; }
+if (!$stmt) {
+  echo json_encode(["success" => false, "error" => "Error al preparar consulta"]);
+  $con->close(); exit;
+}
 
-$stmt->bind_param($types, ...$params);
+// Convertir $params a referencias para bind_param
+$bindParams = [];
+foreach ($params as $k => $v) { $bindParams[$k] = &$params[$k]; }
+
+array_unshift($bindParams, $types); // primero el string de tipos
+
+if (!call_user_func_array([$stmt, 'bind_param'], $bindParams)) {
+  echo json_encode(["success" => false, "error" => "Error al vincular parámetros"]);
+  $stmt->close(); $con->close(); exit;
+}
 
 if ($stmt->execute()) {
   if ($stmt->affected_rows > 0) {
