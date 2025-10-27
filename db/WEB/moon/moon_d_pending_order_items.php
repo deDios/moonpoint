@@ -24,10 +24,6 @@ if (!isset($in['pending_order_id']) || $in['pending_order_id'] === "") {
 
 $pending_order_id = (int)$in['pending_order_id'];
 
-$label  = isset($in['label'])  ? trim((string)$in['label'])   : null;
-$total  = isset($in['total'])  ? (float)$in['total']          : null;
-$status = isset($in['status']) ? (int)$in['status']           : null;
-
 $con = conectar();
 if (!$con) {
   echo json_encode(["success" => false, "error" => "No se pudo conectar a la base de datos"]);
@@ -35,20 +31,7 @@ if (!$con) {
 }
 $con->set_charset('utf8mb4');
 
-$sets  = [];
-$types = "";
-$args  = [];
-
-if ($label !== null)  { $sets[] = "label = ?";       $types .= "s"; $args[] = $label; }
-if ($total !== null)  { $sets[] = "total = ?";       $types .= "d"; $args[] = $total; }
-if ($status !== null) { $sets[] = "status = ?";      $types .= "i"; $args[] = $status; }
-
-$sets[] = "updated_at = NOW()";
-
-$sql = "UPDATE `moon_point`.`moon_pending_order` SET " . implode(", ", $sets) . " WHERE id = ?";
-$types .= "i";
-$args[]  = $pending_order_id;
-
+$sql = "DELETE FROM `moon_point`.`moon_pending_order_item` WHERE pending_order_id = ?";
 $stmt = $con->prepare($sql);
 if (!$stmt) {
   echo json_encode(["success" => false, "error" => "Error al preparar consulta: ".$con->error]);
@@ -56,12 +39,12 @@ if (!$stmt) {
   exit;
 }
 
-$stmt->bind_param($types, ...$args);
+$stmt->bind_param("i", $pending_order_id);
 
 if ($stmt->execute()) {
-  echo json_encode(["success" => true]);
+  echo json_encode(["success" => true, "deleted" => $stmt->affected_rows]);
 } else {
-  echo json_encode(["success" => false, "error" => "Error al actualizar: ".$stmt->error]);
+  echo json_encode(["success" => false, "error" => "Error al eliminar: ".$stmt->error]);
 }
 
 $stmt->close();
