@@ -14,16 +14,16 @@ if (!$path || !file_exists($path)) {
 }
 include $path;
 
-// Lee body
 $input = json_decode(file_get_contents("php://input"), true);
 if (!is_array($input)) { $input = []; }
 
-// Param obligatorios
+// obligatorios
 if (!isset($input['organization_id']) || $input['organization_id'] === "") {
   echo json_encode(["success" => false, "error" => "Falta parámetro obligatorio: organization_id"]);
   exit;
 }
-// Acepta label o name para compat
+
+// acepta label o name
 $label = null;
 if (isset($input['label']) && $input['label'] !== '') {
   $label = trim((string)$input['label']);
@@ -34,28 +34,28 @@ if (isset($input['label']) && $input['label'] !== '') {
   exit;
 }
 
-$organization_id = (int)$input["organization_id"];
-$customer_name   = isset($input["customer_name"]) ? trim((string)$input["customer_name"]) : null;
-$source          = isset($input["source"]) ? trim((string)$input["source"]) : "pos";
-$channel         = isset($input["channel"]) ? trim((string)$input["channel"]) : "local";
-$status          = isset($input["status"]) ? trim((string)$input["status"]) : "pending";
-$total           = isset($input["total"]) ? (float)$input["total"] : 0.0;
-$external_ref    = isset($input["external_ref"]) ? trim((string)$input["external_ref"]) : null;
-$created_by_user = isset($input["created_by_user"]) ? (int)$input["created_by_user"] : null;
-$attributes      = isset($input["attributes"]) ? json_encode($input["attributes"]) : null;
+$organization_id   = (int)$input['organization_id'];
+$source            = isset($input['source']) ? (int)$input['source'] : 1;     // 1=POS, 2=otro canal
+$channel           = isset($input['channel']) ? trim((string)$input['channel']) : '';
+$customer_name     = isset($input['customer_name']) ? trim((string)$input['customer_name']) : '';
+$status            = isset($input['status']) ? (int)$input['status'] : 0;     // 0=pending
+$total             = isset($input['total']) ? (float)$input['total'] : 0.0;
+$external_ref      = isset($input['external_ref']) ? trim((string)$input['external_ref']) : '';
+$created_by_user_id= isset($input['created_by_user_id']) && $input['created_by_user_id'] !== ''
+                        ? (int)$input['created_by_user_id'] : 0; // 0 -> NULL
+$attributes        = isset($input['attributes']) ? json_encode($input['attributes']) : '';
 
+// conexión
 $con = conectar();
 if (!$con) {
   echo json_encode(["success" => false, "error" => "No se pudo conectar a la base de datos"]);
   exit;
 }
 $con->set_charset('utf8mb4');
-$con->autocommit(true);
 
-// Usa base/tabla totalmente calificada
 $sql = "INSERT INTO `moon_point`.`moon_pending_order`
-  (organization_id, source, channel, label, customer_name, status, total, external_ref, created_by_user, attributes)
-  VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)";
+  (organization_id, source, channel, label, customer_name, status, total, external_ref, created_by_user_id, attributes)
+  VALUES (?, ?, NULLIF(?,''), ?, NULLIF(?,''), ?, ?, NULLIF(?,''), NULLIF(?,0), NULLIF(?,''))";
 
 $stmt = $con->prepare($sql);
 if (!$stmt) {
@@ -64,7 +64,8 @@ if (!$stmt) {
 }
 
 $stmt->bind_param(
-  "isssssdsis",
+  // ii s  s  s  i  d  s  i  s
+  "iisssidsis",
   $organization_id,
   $source,
   $channel,
@@ -73,7 +74,7 @@ $stmt->bind_param(
   $status,
   $total,
   $external_ref,
-  $created_by_user,
+  $created_by_user_id,
   $attributes
 );
 
