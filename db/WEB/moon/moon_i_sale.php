@@ -1,6 +1,9 @@
 <?php
 header('Content-Type: application/json');
 
+// (Opcional, solo para funciones PHP como date()): asegura TZ en PHP.
+@date_default_timezone_set('America/Mexico_City');
+
 if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
   http_response_code(405);
   echo json_encode(["success" => false, "error" => "Método no permitido. Usa POST."]);
@@ -91,6 +94,16 @@ if ($payment_method === 1) { // efectivo
 $con = conectar();
 if (!$con) { echo json_encode(["success"=>false,"error"=>"No se pudo conectar a la base de datos"]); exit; }
 $con->set_charset('utf8mb4');
+
+// === AJUSTE DE ZONA HORARIA EN LA SESIÓN MySQL ===
+try {
+    // Intento con nombre de zona (si MySQL tiene time zone tables cargadas)
+    $con->query("SET time_zone = 'America/Mexico_City'");
+} catch (Throwable $e) {
+    // Fallback si la zona por nombre no existe en MySQL
+    $con->query("SET time_zone = '-06:00'");
+}
+// === FIN AJUSTE TZ ===
 
 try {
   $con->begin_transaction();
