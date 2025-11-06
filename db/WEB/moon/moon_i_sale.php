@@ -92,6 +92,13 @@ $con = conectar();
 if (!$con) { echo json_encode(["success"=>false,"error"=>"No se pudo conectar a la base de datos"]); exit; }
 $con->set_charset('utf8mb4');
 
+/* ====== AJUSTE DE ZONA HORARIA POR SESIÓN ======
+   Hereda la global (-06:00 en tu servidor). Si por alguna razón falla,
+   forzamos el offset explícito (no requiere tablas de zonas). */
+if (!$con->query("SET time_zone = @@global.time_zone")) {
+  $con->query("SET time_zone = '-06:00'");
+}
+
 try {
   $con->begin_transaction();
 
