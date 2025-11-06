@@ -37,6 +37,12 @@ $con = conectar();
 if (!$con) { echo json_encode(["success"=>false,"error"=>"No se pudo conectar a la base de datos"]); exit; }
 $con->set_charset('utf8mb4');
 
+/* ===== Ajuste de zona horaria por sesión =====
+   Hereda la global del servidor; si fallara, fuerza -06:00 (no requiere tablas tz). */
+if (!$con->query("SET time_zone = @@global.time_zone")) {
+  $con->query("SET time_zone = '-06:00'");
+}
+
 $sql = "INSERT INTO `moon_point`.`moon_expense`
         (organization_id, vendor_id, description, expense_date, amount,
          payment_method, status, note, attributes)
