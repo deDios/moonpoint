@@ -20,12 +20,24 @@ if (!is_array($input)) { $input = []; }
 if (!isset($input["organization_id"])) {
   echo json_encode(["success"=>false,"error"=>"Falta parámetro obligatorio: organization_id"]); exit;
 }
+
 $organization_id = (int)$input["organization_id"];
 $employee_id     = isset($input["employee_id"]) ? (int)$input["employee_id"] : null;
 $event_type      = isset($input["event_type"]) ? (int)$input["event_type"] : null;
 $date            = isset($input["date"]) ? trim((string)$input["date"]) : null; // YYYY-MM-DD
 $date_from       = isset($input["date_from"]) ? trim((string)$input["date_from"]) : null;
 $date_to         = isset($input["date_to"]) ? trim((string)$input["date_to"]) : null;
+
+// Offset horario (por defecto -6 horas: servidor adelantado 6h)
+$offset_hours = isset($input["offset_hours"]) ? (int)$input["offset_hours"] : -6;
+// Construimos expresiones SQL seguras para sumar/restar horas (valor ya casteado a int)
+$abs = abs($offset_hours);
+$event_at_local_expr  = ($offset_hours >= 0)
+  ? "DATE_ADD(a.event_at_utc, INTERVAL $abs HOUR)"
+  : "DATE_SUB(a.event_at_utc, INTERVAL $abs HOUR)";
+$created_at_local_expr = ($offset_hours >= 0)
+  ? "DATE_ADD(a.created_at,   INTERVAL $abs HOUR)"
+  : "DATE_SUB(a.created_at,   INTERVAL $abs HOUR)";
 
 $page     = isset($input["page"]) ? max(1,(int)$input["page"]) : 1;
 $pageSize = isset($input["page_size"]) ? max(1,min(500,(int)$input["page_size"])) : 100;
@@ -52,9 +64,16 @@ if ($date) {
 
 $sql = "SELECT SQL_CALC_FOUND_ROWS
           a.id, a.organization_id, a.employee_id, a.customer_id,
-          a.event_type, a.event_at_utc, a.event_tz, a.event_local_date,
+          a.event_type,
+          a.event_at_utc,
+          $event_at_local_expr  AS event_at_local,     -- UTC ajustado con offset
+          a.event_tz,
+          a.event_local_date,                           -- día local calculado al registrar
           a.lat, a.lng, a.accuracy_m, a.photo_url, a.device_id, a.source, a.notes,
-          a.verified, a.verified_by, a.verified_at, a.status, a.created_at, a.updated_at,
+          a.verified, a.verified_by, a.verified_at, a.status,
+          a.created_at,
+          $created_at_local_expr AS created_at_local,  -- created_at ajustado con offset
+          a.updated_at,
           e.role,
           c.customer_name, c.full_name AS customer_full_name
         FROM moon_attendance a
@@ -62,7 +81,7 @@ $sql = "SELECT SQL_CALC_FOUND_ROWS
           ON e.organization_id = a.organization_id AND e.id = a.employee_id
         LEFT JOIN moon_customer c
           ON c.organization_id = a.organization_id AND c.id = a.customer_id
-        WHERE ".implode(" AND ", $where)."
+        WHERE ".implode(' AND ', $where)."
         ORDER BY a.event_at_utc DESC
         LIMIT ? OFFSET ?";
 
@@ -77,8 +96,11 @@ $stmt->execute();
 $res = $stmt->get_result();
 
 $data = [];
-while ($row = $res->fetch_assoc()) { $data[] = $row; }
-
+while ($row = $res->fetch_assoc()) {
+  // Opcional: si prefieres redondear a fecha local ajustada:
+  // $row['event_date_from_offset'] = substr($row['event_at_local'], 0, 10);
+  $data[] = $row;
+}
 $stmt->close();
 
 $totalRes = $con->query("SELECT FOUND_ROWS() AS total");
@@ -86,11 +108,12 @@ $total = 0;
 if ($totalRes && $tr=$totalRes->fetch_assoc()) { $total=(int)$tr["total"]; }
 
 echo json_encode([
-  "success"=>true,
-  "page"=>$page,
-  "page_size"=>$pageSize,
-  "total"=>$total,
-  "data"=>$data
+  "success"    => true,
+  "page"       => $page,
+  "page_size"  => $pageSize,
+  "total"      => $total,
+  "offset_hours" => $offset_hours,
+  "data"       => $data
 ]);
 
 $con->close();
