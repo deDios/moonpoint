@@ -54,7 +54,17 @@ if (!$con) {
 }
 $con->set_charset("utf8mb4");
 
-// 1) Verificar empleado y obtener customer_id dentro de la misma organización
+/* =========================
+   Forzar zona horaria (sesión)
+   ========================= */
+if (!$con->query("SET time_zone = @@global.time_zone")) {
+  // Fallback cuando el servidor no tiene tablas tz cargadas
+  $con->query("SET time_zone = '-06:00'");
+}
+// (Opcional debug)
+// $rs=$con->query("SELECT @@session.time_zone tz"); if($rs){error_log('attendance.tz='.$rs->fetch_assoc()['tz']);}
+
+/* ===== 1) Verificar empleado ===== */
 $sqlEmp = "SELECT id, customer_id, role FROM moon_employee 
            WHERE organization_id = ? AND id = ? LIMIT 1";
 $stmtEmp = $con->prepare($sqlEmp);
@@ -71,7 +81,7 @@ if (!$emp) {
 }
 $customer_id = (int)$emp["customer_id"];
 
-// 2) Calcular evento UTC y fecha local
+/* ===== 2) Calcular evento UTC y fecha local (según event_tz) ===== */
 try {
   $utcNow = new DateTime("now", new DateTimeZone("UTC"));
   $event_at_utc = $utcNow->format("Y-m-d H:i:s");
@@ -90,7 +100,7 @@ try {
   $con->close(); exit;
 }
 
-// 3) Guardar selfie si viene en base64 (opcional)
+/* ===== 3) Guardar selfie si viene en base64 (opcional) ===== */
 if ($photo_b64) {
   $filename = null;
   $dir = "/home/site/wwwroot/uploads/attendance/".$organization_id;
@@ -112,7 +122,7 @@ if ($photo_b64) {
   }
 }
 
-// 4) Insert dinámico (campos opcionales sólo si vienen)
+/* ===== 4) Insert dinámico ===== */
 $cols = ["organization_id","employee_id","customer_id","event_type","event_at_utc","event_tz","event_local_date"];
 $phs  = ["?","?","?","?","?","?","?"];
 $types = "iiiisss";
