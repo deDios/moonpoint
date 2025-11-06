@@ -14,6 +14,10 @@ if (!$path || !file_exists($path)) {
 }
 include $path;
 
+// TZ >>> Asegura zona horaria de la app (por si se usan date()/time() en el futuro)
+@date_default_timezone_set('America/Mexico_City');
+// TZ <<<
+
 $in = json_decode(file_get_contents("php://input"), true);
 if (!is_array($in)) { $in = []; }
 
@@ -91,6 +95,13 @@ if ($payment_method === 1) { // efectivo
 $con = conectar();
 if (!$con) { echo json_encode(["success"=>false,"error"=>"No se pudo conectar a la base de datos"]); exit; }
 $con->set_charset('utf8mb4');
+
+// TZ >>> Forzamos la zona horaria de la **sesión MySQL**
+// Si el servidor no tiene las tablas de tz cargadas, cae al offset fijo -06:00.
+if (!$con->query("SET time_zone = 'America/Mexico_City'")) {
+  $con->query("SET time_zone = '-06:00'");
+}
+// TZ <<<
 
 try {
   $con->begin_transaction();
