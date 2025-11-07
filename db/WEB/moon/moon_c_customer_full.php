@@ -29,7 +29,7 @@ $customer_id   = isset($in['customer_id']) && $in['customer_id'] !== "" ? (int)$
 $search        = isset($in['search'])        ? trim((string)$in['search'])        : '';
 $is_active     = (isset($in['is_active']) && $in['is_active'] !== '') ? (int)$in['is_active'] : null;
 $updated_after = isset($in['updated_after']) ? trim((string)$in['updated_after']) : '';
-$limit         = isset($in['limit']) ? max(1, min(200, (int)$in['limit'])) : 200;
+$limit         = isset($in['limit']) ? max(1, min(20000, (int)$in['limit'])) : 200;
 
 $con = conectar();
 if (!$con) {
