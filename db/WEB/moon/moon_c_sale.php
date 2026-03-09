@@ -28,7 +28,7 @@ $sale_id         = isset($in['sale_id']) ? (int)$in['sale_id'] : 0;
 $pending_order_id= isset($in['pending_order_id']) ? (int)$in['pending_order_id'] : 0;
 $date_from       = isset($in['date_from']) ? trim((string)$in['date_from']) : ''; // 'YYYY-MM-DD'
 $date_to         = isset($in['date_to'])   ? trim((string)$in['date_to'])   : ''; // 'YYYY-MM-DD'
-$limit           = isset($in['limit']) ? max(1, min(200, (int)$in['limit'])) : 100;
+$limit           = isset($in['limit']) ? max(1, min(100000, (int)$in['limit'])) : 100;
 
 $con = conectar();
 if (!$con) { echo json_encode(["success"=>false,"error"=>"No se pudo conectar a la base de datos"]); exit; }

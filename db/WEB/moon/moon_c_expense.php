@@ -22,7 +22,7 @@ $vendor_id       = isset($in['vendor_id']) ? (int)$in['vendor_id'] : 0;
 $status          = isset($in['status']) ? (int)$in['status'] : null; // 1=registrado,2=cancelado
 $date_from       = isset($in['date_from']) ? trim((string)$in['date_from']) : ''; // YYYY-MM-DD
 $date_to         = isset($in['date_to'])   ? trim((string)$in['date_to'])   : ''; // YYYY-MM-DD
-$limit           = isset($in['limit']) ? max(1, min(200, (int)$in['limit'])) : 100;
+$limit           = isset($in['limit']) ? max(1, min(100000, (int)$in['limit'])) : 100;
 
 $con = conectar();
 if (!$con) { echo json_encode(["success"=>false,"error"=>"No se pudo conectar a la base de datos"]); exit; }
