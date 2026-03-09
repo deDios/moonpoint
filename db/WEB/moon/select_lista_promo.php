@@ -3,15 +3,10 @@ header('Content-Type: application/json');
 
 if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
   http_response_code(405);
-  echo json_encode(["success" => false, "error" => "Método no permitido. Usa POST."]);
   exit;
 }
 
 $path = realpath("/home/site/wwwroot/db/conn/Conexion.php");
-if (!$path || !file_exists($path)) {
-  echo json_encode(["success" => false, "error" => "No se encontró Conexion.php"]);
-  exit;
-}
 include $path;
 
 $in = json_decode(file_get_contents("php://input"), true);
@@ -23,19 +18,23 @@ if (empty($in['Id_company'])) {
 }
 
 $Id_company = (int)$in['Id_company'];
-// Filtro opcional por id_promo
 $id_promo   = !empty($in['id_promo']) ? (int)$in['id_promo'] : null;
 
 $con = conectar();
-if (!$con) {
-  echo json_encode(["success" => false, "error" => "No se pudo conectar a la base de datos"]);
-  exit;
-}
 $con->set_charset('utf8mb4');
 
-$sql = "SELECT lp.*, p.nombre AS nombre_promocion
+// Hacemos JOIN con clientes, productos y compuestos
+$sql = "SELECT lp.*, 
+               p.nombre AS nombre_promocion,
+               c.customer_name, 
+               c.full_name,
+               prod.name AS producto_nombre,
+               comp.id_compuesto AS compuesto_nombre
         FROM `moon_lista_promo` lp
         INNER JOIN `moon_promo` p ON lp.id_promo = p.id
+        LEFT JOIN `moon_customer` c ON lp.id_cliente = c.id
+        LEFT JOIN `moon_product` prod ON lp.id_producto = prod.id
+        LEFT JOIN `moon_producto_compuesto` comp ON lp.id_compuesto = comp.id
         WHERE lp.Id_company = ?";
 
 $types = "i";
@@ -48,22 +47,23 @@ if ($id_promo !== null) {
 }
 
 $stmt = $con->prepare($sql);
-if (!$stmt) {
-  echo json_encode(["success" => false, "error" => "Error al preparar consulta: " . $con->error]);
-  $con->close();
-  exit;
-}
-
 $stmt->bind_param($types, ...$args);
 $stmt->execute();
 $result = $stmt->get_result();
 
 $lista_promo = [];
 while ($row = $result->fetch_assoc()) {
+    // Casteo seguro para Swift
+    $row['id'] = (int)$row['id'];
+    $row['id_promo'] = (int)$row['id_promo'];
+    $row['id_cliente'] = $row['id_cliente'] !== null ? (int)$row['id_cliente'] : null;
+    $row['id_producto'] = $row['id_producto'] !== null ? (int)$row['id_producto'] : null;
+    $row['id_compuesto'] = $row['id_compuesto'] !== null ? (int)$row['id_compuesto'] : null;
+    $row['cantidad'] = $row['cantidad'] !== null ? (int)$row['cantidad'] : null;
+    
     $lista_promo[] = $row;
 }
 
 echo json_encode(["success" => true, "data" => $lista_promo]);
-
 $stmt->close();
 $con->close();
