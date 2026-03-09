@@ -22,12 +22,7 @@ if (!isset($in['id']) || $in['id'] === "") {
   exit;
 }
 
-$id         = (int)$in['id'];
-$nombre     = array_key_exists('nombre', $in)     ? trim((string)$in['nombre']) : null;
-$porcentaje = array_key_exists('porcentaje', $in) && $in['porcentaje'] !== '' ? (int)$in['porcentaje'] : null;
-$cantidad   = array_key_exists('cantidad', $in)   && $in['cantidad'] !== '' ? (int)$in['cantidad'] : null;
-$promo_type = array_key_exists('promo_type', $in) && $in['promo_type'] !== '' ? (int)$in['promo_type'] : null;
-$status     = array_key_exists('status', $in)     && $in['status'] !== '' ? (int)$in['status'] : null;
+$id = (int)$in['id'];
 
 $con = conectar();
 if (!$con) {
@@ -36,35 +31,39 @@ if (!$con) {
 }
 $con->set_charset('utf8mb4');
 
-// Build dinámico
 $sets  = [];
 $types = "";
 $args  = [];
 
-if ($nombre !== null) {
+if (array_key_exists('nombre', $in)) {
   $sets[]  = "nombre = ?";
   $types  .= "s";
-  $args[]  = $nombre;
+  $args[]  = trim((string)$in['nombre']);
 }
-if ($porcentaje !== null) {
+if (array_key_exists('porcentaje', $in)) {
   $sets[]  = "porcentaje = ?";
   $types  .= "i";
-  $args[]  = $porcentaje;
+  $args[]  = $in['porcentaje'] !== null ? (int)$in['porcentaje'] : null;
 }
-if ($cantidad !== null) {
+if (array_key_exists('cantidad', $in)) {
   $sets[]  = "cantidad = ?";
   $types  .= "i";
-  $args[]  = $cantidad;
+  $args[]  = $in['cantidad'] !== null ? (int)$in['cantidad'] : null;
 }
-if ($promo_type !== null) {
+if (array_key_exists('formato_descuento', $in)) {
+  $sets[]  = "formato_descuento = ?";
+  $types  .= "i";
+  $args[]  = (int)$in['formato_descuento'];
+}
+if (array_key_exists('promo_type', $in)) {
   $sets[]  = "promo_type = ?";
   $types  .= "i";
-  $args[]  = $promo_type;
+  $args[]  = (int)$in['promo_type'];
 }
-if ($status !== null) {
+if (array_key_exists('status', $in)) {
   $sets[]  = "status = ?";
   $types  .= "i";
-  $args[]  = $status;
+  $args[]  = (int)$in['status'];
 }
 
 if (count($sets) === 0) {
@@ -72,7 +71,6 @@ if (count($sets) === 0) {
     exit;
 }
 
-// siempre tocamos updated_at (dependiendo de tu MySQL, esto puede ser automático, pero lo dejamos por consistencia)
 $sets[] = "updated_at = NOW()";
 
 $sql = "UPDATE `moon_promo` SET " . implode(", ", $sets) . " WHERE id = ?";

@@ -32,6 +32,7 @@ if (!$con) {
 }
 $con->set_charset('utf8mb4');
 
+// Seleccionamos la promo y hacemos el JOIN solo con el tipo de promoción
 $sql = "SELECT p.*, pt.nombre as nombre_tipo_promo 
         FROM `moon_promo` p
         LEFT JOIN `moon_promo_type` pt ON p.promo_type = pt.id
@@ -59,6 +60,15 @@ $result = $stmt->get_result();
 
 $promos = [];
 while ($row = $result->fetch_assoc()) {
+    // Casteamos los valores numéricos para que Swift no tenga problemas al decodificar
+    $row['id']                = (int)$row['id'];
+    $row['porcentaje']        = $row['porcentaje'] !== null ? (int)$row['porcentaje'] : null;
+    $row['cantidad']          = $row['cantidad'] !== null ? (int)$row['cantidad'] : null;
+    $row['formato_descuento'] = (int)$row['formato_descuento'];
+    $row['promo_type']        = (int)$row['promo_type'];
+    $row['status']            = (int)$row['status'];
+    $row['Id_company']        = (int)$row['Id_company'];
+    
     $promos[] = $row;
 }
 
